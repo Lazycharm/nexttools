@@ -1,0 +1,155 @@
+{
+  "name": "Service",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Service name"
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Short description"
+    },
+    "description": {
+      "type": "string",
+      "description": "Full description"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "proxy_tools",
+        "virtual_numbers",
+        "social_growth",
+        "website_traffic",
+        "blue_tick",
+        "photo_tools",
+        "templates",
+        "content_tools",
+        "gpro"
+      ]
+    },
+    "sub_category": {
+      "type": "string"
+    },
+    "price_type": {
+      "type": "string",
+      "enum": [
+        "fixed",
+        "quantity",
+        "duration",
+        "bundle"
+      ]
+    },
+    "base_price": {
+      "type": "number"
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "duration_days": {
+            "type": "number"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "countries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "delivery_estimate": {
+      "type": "string"
+    },
+    "quality_badge": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "premium",
+        "elite"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "coming_soon"
+      ],
+      "default": "active"
+    },
+    "is_featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_restricted": {
+      "type": "boolean",
+      "default": false
+    },
+    "refill_period": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number"
+    },
+    "total_orders": {
+      "type": "number",
+      "default": 0
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "faq": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "title",
+    "category",
+    "base_price"
+  ]
+}

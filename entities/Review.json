@@ -1,0 +1,30 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "service_id": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number"
+    },
+    "content": {
+      "type": "string"
+    },
+    "is_featured": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_name",
+    "rating",
+    "content"
+  ]
+}

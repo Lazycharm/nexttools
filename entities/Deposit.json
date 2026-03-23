@@ -1,0 +1,52 @@
+{
+  "name": "Deposit",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "crypto_type": {
+      "type": "string",
+      "enum": [
+        "USDT",
+        "ETH",
+        "BTC"
+      ]
+    },
+    "network": {
+      "type": "string"
+    },
+    "wallet_address": {
+      "type": "string"
+    },
+    "tx_hash": {
+      "type": "string"
+    },
+    "proof_url": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "admin_notes": {
+      "type": "string"
+    },
+    "credited_amount": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "user_email",
+    "amount",
+    "crypto_type"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "name": "Order",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "service_id": {
+      "type": "string"
+    },
+    "service_title": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "package_name": {
+      "type": "string"
+    },
+    "quantity": {
+      "type": "number"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "active",
+        "completed",
+        "cancelled",
+        "refunded"
+      ],
+      "default": "pending"
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "wallet",
+        "crypto"
+      ]
+    },
+    "target_url": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "delivery_estimate": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_email",
+    "service_title",
+    "amount"
+  ]
+}
