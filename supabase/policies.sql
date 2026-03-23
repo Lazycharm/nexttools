@@ -8,6 +8,10 @@ alter table tickets enable row level security;
 alter table notifications enable row level security;
 alter table reviews enable row level security;
 alter table app_settings enable row level security;
+alter table virtual_numbers enable row level security;
+alter table virtual_number_orders enable row level security;
+alter table verified_profiles enable row level security;
+alter table profile_setup_requests enable row level security;
 
 -- Helper function used by policies
 create or replace function public.is_admin()
@@ -172,3 +176,48 @@ for select using (true);
 drop policy if exists "app_settings_admin_write" on app_settings;
 create policy "app_settings_admin_write" on app_settings
 for all using (public.is_admin()) with check (public.is_admin());
+
+-- virtual_numbers
+drop policy if exists "virtual_numbers_public_read" on virtual_numbers;
+create policy "virtual_numbers_public_read" on virtual_numbers
+for select using (true);
+
+drop policy if exists "virtual_numbers_admin_write" on virtual_numbers;
+create policy "virtual_numbers_admin_write" on virtual_numbers
+for all using (public.is_admin()) with check (public.is_admin());
+
+-- virtual_number_orders
+drop policy if exists "virtual_number_orders_user_read_or_admin" on virtual_number_orders;
+create policy "virtual_number_orders_user_read_or_admin" on virtual_number_orders
+for select using (user_id = auth.uid() or user_email = auth.email() or public.is_admin());
+
+drop policy if exists "virtual_number_orders_user_insert_or_admin" on virtual_number_orders;
+create policy "virtual_number_orders_user_insert_or_admin" on virtual_number_orders
+for insert with check (user_id = auth.uid() or user_email = auth.email() or public.is_admin());
+
+drop policy if exists "virtual_number_orders_admin_update_delete" on virtual_number_orders;
+create policy "virtual_number_orders_admin_update_delete" on virtual_number_orders
+for all using (public.is_admin()) with check (public.is_admin());
+
+-- verified_profiles
+drop policy if exists "verified_profiles_public_read" on verified_profiles;
+create policy "verified_profiles_public_read" on verified_profiles
+for select using (true);
+
+drop policy if exists "verified_profiles_admin_write" on verified_profiles;
+create policy "verified_profiles_admin_write" on verified_profiles
+for all using (public.is_admin()) with check (public.is_admin());
+
+-- profile_setup_requests
+drop policy if exists "profile_setup_requests_user_read_or_admin" on profile_setup_requests;
+create policy "profile_setup_requests_user_read_or_admin" on profile_setup_requests
+for select using (user_email = auth.email() or public.is_admin());
+
+drop policy if exists "profile_setup_requests_user_insert_or_admin" on profile_setup_requests;
+create policy "profile_setup_requests_user_insert_or_admin" on profile_setup_requests
+for insert with check (user_email = auth.email() or public.is_admin());
+
+drop policy if exists "profile_setup_requests_user_update_or_admin" on profile_setup_requests;
+create policy "profile_setup_requests_user_update_or_admin" on profile_setup_requests
+for update using (user_email = auth.email() or public.is_admin())
+with check (user_email = auth.email() or public.is_admin());

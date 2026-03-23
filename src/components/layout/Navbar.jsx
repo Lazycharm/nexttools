@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,8 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut, Settings, LayoutDashboard, Bell, Wallet, ChevronDown, Zap } from 'lucide-react';
+import { Menu, User, LogOut, Settings, LayoutDashboard, Bell, Wallet, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import AppLogo from '@/components/common/AppLogo';
 
 const navLinks = [
   { label: 'Services', path: '/catalog' },
@@ -21,6 +22,7 @@ const navLinks = [
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
 
@@ -32,9 +34,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Zap className="w-4.5 h-4.5 text-primary-foreground" />
-              </div>
+              <AppLogo size={32} />
               <span className="text-lg font-bold tracking-tight text-foreground">ToolStack</span>
             </Link>
             <nav className="hidden md:flex items-center gap-1">
@@ -109,10 +109,10 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={() => window.location.assign('/auth')}>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/auth')}>
                   Sign in
                 </Button>
-                <Button size="sm" onClick={() => window.location.assign('/auth')}>
+                <Button size="sm" onClick={() => navigate('/auth')}>
                   Get Started
                 </Button>
               </>
@@ -150,7 +150,7 @@ export default function Navbar() {
                     </button>
                   </>
                 ) : (
-                  <Button onClick={() => window.location.assign('/auth')} className="mt-2">
+                  <Button onClick={() => navigate('/auth')} className="mt-2">
                     Get Started
                   </Button>
                 )}

@@ -24,6 +24,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 Run the SQL in `supabase/schema.sql` inside your Supabase SQL Editor.
 Then run `supabase/policies.sql` to enable RLS, admin/user policies, and auto-profile creation trigger.
+If you want demo catalog content, run `supabase/seed_services.sql` to insert 20 realistic services.
+For virtual number inventory demos (10 countries x 10 numbers), run `supabase/seed_virtual_numbers.sql`.
 
 ## Netlify deployment
 

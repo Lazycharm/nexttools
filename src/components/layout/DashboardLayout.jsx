@@ -3,13 +3,16 @@ import { Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   LayoutDashboard, ShoppingCart, Wallet, CreditCard, LifeBuoy,
-  Settings, Bell, History, Star, ChevronLeft, Menu, Zap, LogOut
+  Settings, Bell, History, Star, Menu, LogOut, Store, Tags
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import AppLogo from '@/components/common/AppLogo';
 
 const sidebarLinks = [
   { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Browse Services', path: '/catalog', icon: Store },
+  { label: 'Pricing Plans', path: '/pricing', icon: Tags },
   { label: 'Orders', path: '/dashboard/orders', icon: ShoppingCart },
   { label: 'Subscriptions', path: '/dashboard/subscriptions', icon: Star },
   { label: 'Wallet', path: '/dashboard/wallet', icon: Wallet },
@@ -27,9 +30,7 @@ function SidebarContent({ user, onClose, onLogout }) {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-border">
         <Link to="/" className="flex items-center gap-2.5" onClick={onClose}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Zap className="w-4.5 h-4.5 text-primary-foreground" />
-          </div>
+          <AppLogo size={32} />
           <span className="text-lg font-bold tracking-tight">ToolStack</span>
         </Link>
       </div>
@@ -111,9 +112,7 @@ export default function DashboardLayout() {
               </SheetContent>
             </Sheet>
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5 text-primary-foreground" />
-              </div>
+              <AppLogo size={28} rounded="rounded-md" />
               <span className="font-bold">ToolStack</span>
             </Link>
             <Link to="/dashboard/wallet">

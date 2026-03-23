@@ -3,16 +3,18 @@ import { Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   LayoutDashboard, Users, CreditCard, ShoppingCart, Tag,
-  LifeBuoy, Settings, BarChart3, Bell, Star, Menu, Zap, LogOut,
-  Package, FileText, Gift, Shield
+  LifeBuoy, Settings, BarChart3, Bell, Star, Menu, LogOut,
+  Package, FileText, Gift, IdCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import AppLogo from '@/components/common/AppLogo';
 
 const adminLinks = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard },
   { label: 'Users', path: '/admin/users', icon: Users },
   { label: 'Services', path: '/admin/services', icon: Package },
+  { label: 'Verified Profiles', path: '/admin/verified-profiles', icon: IdCard },
   { label: 'Orders', path: '/admin/orders', icon: ShoppingCart },
   { label: 'Deposits', path: '/admin/deposits', icon: CreditCard },
   { label: 'Subscriptions', path: '/admin/subscriptions', icon: Star },
@@ -28,9 +30,7 @@ function AdminSidebar({ onClose, onLogout }) {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-border">
         <Link to="/admin" className="flex items-center gap-2.5" onClick={onClose}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Shield className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <AppLogo size={32} />
           <div>
             <span className="text-sm font-bold tracking-tight">ToolStack</span>
             <span className="text-xs text-muted-foreground ml-1.5">Admin</span>

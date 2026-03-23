@@ -16,13 +16,20 @@ export const AuthProvider = ({ children }) => {
       full_name: authUser.user_metadata?.full_name ?? '',
     };
 
-    await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+    const { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+    if (upsertError) {
+      // Do not block session usage if profile write fails (RLS/migration timing).
+      console.error('Profile upsert failed:', upsertError.message);
+    }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
       .maybeSingle();
+    if (profileError) {
+      console.error('Profile fetch failed:', profileError.message);
+    }
 
     return {
       id: authUser.id,
@@ -36,19 +43,49 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const bootstrap = async () => {
-      const { data } = await supabase.auth.getSession();
-      const authUser = data?.session?.user ?? null;
+    let isMounted = true;
+    let profileLoadId = 0;
+    let refreshIntervalId;
 
-      if (!authUser) {
-        setUser(null);
-        setIsLoading(false);
-        return;
+    const syncFromSession = async (session) => {
+      try {
+        const authUser = session?.user ?? null;
+        if (!isMounted) return;
+        if (!authUser) {
+          setUser(null);
+          return;
+        }
+
+        // Immediately expose authenticated user to avoid UI deadlocks.
+        setUser((prev) => ({
+          id: authUser.id,
+          email: authUser.email,
+          full_name: prev?.full_name ?? authUser.user_metadata?.full_name ?? '',
+          role: prev?.role ?? 'user',
+          wallet_balance: prev?.wallet_balance ?? 0,
+          total_deposits: prev?.total_deposits ?? 0,
+          created_at: prev?.created_at ?? authUser.created_at,
+        }));
+
+        const currentLoadId = ++profileLoadId;
+        const hydratedUser = await hydrateUser(authUser);
+        if (isMounted && currentLoadId === profileLoadId) setUser(hydratedUser);
+      } catch (error) {
+        console.error('Auth sync failed:', error);
       }
+    };
 
-      const hydratedUser = await hydrateUser(authUser);
-      setUser(hydratedUser);
-      setIsLoading(false);
+    const bootstrap = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) console.error('getSession failed:', error.message);
+        await syncFromSession(data?.session ?? null);
+      } catch (error) {
+        console.error('Auth bootstrap failed:', error);
+        if (isMounted) setUser(null);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
     };
 
     bootstrap();
@@ -56,17 +93,32 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const authUser = session?.user ?? null;
-      if (!authUser) {
-        setUser(null);
-        return;
-      }
-
-      const hydratedUser = await hydrateUser(authUser);
-      setUser(hydratedUser);
+      // Supabase recommends deferring async work to avoid lock contention in callback.
+      setTimeout(() => {
+        syncFromSession(session).finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+      }, 0);
     });
 
-    return () => subscription.unsubscribe();
+    const refreshProfile = async () => {
+      if (!isMounted) return;
+      const { data } = await supabase.auth.getSession();
+      const authUser = data?.session?.user ?? null;
+      if (!authUser) return;
+      await syncFromSession(data.session);
+    };
+
+    // Keep wallet/role changes synced when admin updates profile server-side.
+    refreshIntervalId = setInterval(refreshProfile, 15000);
+    window.addEventListener('focus', refreshProfile);
+
+    return () => {
+      isMounted = false;
+      if (refreshIntervalId) clearInterval(refreshIntervalId);
+      window.removeEventListener('focus', refreshProfile);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async ({ email, password }) => supabase.auth.signInWithPassword({ email, password });

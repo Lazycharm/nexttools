@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import {
   Heart, ExternalLink, ChevronDown, ChevronUp, CheckCircle2,
   Wrench, DollarSign, Image, Lightbulb, Smartphone, Monitor,
-  AlertTriangle, Package
+  AlertTriangle, Package, ShoppingBag, Check
 } from 'lucide-react';
+import InsufficientBalanceDialog from '@/components/checkout/InsufficientBalanceDialog';
 
 const TELEGRAM_URL = 'https://t.me/toolstackhq';
+const GUIDE_PRICE = 20;
 
 const tools = [
   { name: 'Dolphin Anty', link: 'https://anty.dolphin.ru.com/', purpose: 'Transferring Accounts' },
@@ -108,7 +116,187 @@ function CostTable({ title, rows, total, color }) {
   );
 }
 
+function ProfileStatusBadge({ status }) {
+  const normalized = (status || '').toLowerCase();
+  if (normalized === 'sold') {
+    return <Badge className="bg-destructive/10 text-destructive border-destructive/20">Sold</Badge>;
+  }
+  if (normalized === 'reserved') {
+    return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200">Reserved</Badge>;
+  }
+  return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Available</Badge>;
+}
+
 export default function DatingGuide() {
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [selectedImage, setSelectedImage] = useState('');
+  const [insufficientContext, setInsufficientContext] = useState(null);
+
+  const { data: guideOrder } = useQuery({
+    queryKey: ['dating-guide-access', user?.email],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id,status')
+        .eq('user_email', user.email)
+        .eq('category', 'dating_guide')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.email,
+  });
+
+  const hasAccess = guideOrder?.status === 'completed' || guideOrder?.status === 'active';
+
+  const { data: verifiedProfiles = [] } = useQuery({
+    queryKey: ['verified-profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('verified_profiles')
+        .select('*')
+        .eq('category', 'dating')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const unlockWithWallet = useMutation({
+    mutationFn: async () => {
+      if (!isAuthenticated || !user?.id || !user?.email) throw new Error('Please sign in first');
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (profileError) throw profileError;
+      const balance = profile?.wallet_balance || 0;
+      if (balance < GUIDE_PRICE) throw new Error('Insufficient wallet balance. Please deposit first.');
+
+      const { error: walletError } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: balance - GUIDE_PRICE })
+        .eq('id', user.id);
+      if (walletError) throw walletError;
+
+      const { error: orderError } = await supabase.from('orders').insert({
+        user_email: user.email,
+        service_title: 'Dating Guide Access',
+        category: 'dating_guide',
+        package_name: 'Guide Unlock',
+        amount: GUIDE_PRICE,
+        quantity: 1,
+        payment_method: 'wallet',
+        status: 'completed',
+        notes: 'Guide access unlocked',
+      });
+      if (orderError) throw orderError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dating-guide-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      toast.success('Dating Guide unlocked');
+    },
+    onError: (error) => {
+      const message = error?.message || 'Unlock failed';
+      toast.error(message);
+      if (message.toLowerCase().includes('insufficient')) return;
+      if (message.toLowerCase().includes('sign in')) navigate('/auth');
+    },
+  });
+
+  const requestCrypto = useMutation({
+    mutationFn: async () => {
+      if (!isAuthenticated || !user?.email) throw new Error('Please sign in first');
+      return true;
+    },
+    onSuccess: () => {
+      toast.success('Complete deposit to unlock Dating Guide.');
+      navigate(
+        `/dashboard/deposits?amount=${GUIDE_PRICE}&purpose=${encodeURIComponent(
+          'Dating Guide unlock'
+        )}&kind=dating_guide`
+      );
+    },
+    onError: (error) => toast.error(error?.message || 'Could not create crypto payment request'),
+  });
+
+  const buyProfileWithWallet = useMutation({
+    mutationFn: async (profile) => {
+      if (!isAuthenticated || !user?.id || !user?.email) throw new Error('Please sign in first');
+      if (!profile || profile.status !== 'available') throw new Error('This profile is not available');
+
+      const { data: latestProfile, error: profileError } = await supabase
+        .from('verified_profiles')
+        .select('*')
+        .eq('id', profile.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!latestProfile || latestProfile.status !== 'available') throw new Error('This profile has already been sold');
+
+      const { data: myWallet, error: walletFetchError } = await supabase.from('profiles').select('wallet_balance').eq('id', user.id).maybeSingle();
+      if (walletFetchError) throw walletFetchError;
+      const balance = Number(myWallet?.wallet_balance || 0);
+      const amount = Number(latestProfile.price || 0);
+      if (balance < amount) throw new Error('Insufficient wallet balance. Please deposit first.');
+
+      const { error: walletError } = await supabase.from('profiles').update({ wallet_balance: balance - amount }).eq('id', user.id);
+      if (walletError) throw walletError;
+
+      const { error: soldError } = await supabase
+        .from('verified_profiles')
+        .update({ status: 'sold', updated_at: new Date().toISOString() })
+        .eq('id', latestProfile.id)
+        .eq('status', 'available');
+      if (soldError) throw soldError;
+
+      const { error: orderError } = await supabase.from('orders').insert({
+        user_email: user.email,
+        service_title: latestProfile.title,
+        category: 'verified_profile',
+        package_name: 'Verified Profile Purchase',
+        amount,
+        quantity: 1,
+        payment_method: 'wallet',
+        status: 'completed',
+        notes: `verified_profile_id:${latestProfile.id}`,
+      });
+      if (orderError) throw orderError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['verified-profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      toast.success('Profile purchased successfully');
+      setSelectedProfile(null);
+    },
+    onError: (error) => {
+      const message = error?.message || 'Purchase failed';
+      toast.error(message);
+      if (message.toLowerCase().includes('insufficient')) return;
+      if (message.toLowerCase().includes('sign in')) navigate('/auth');
+    },
+  });
+
+  const buyProfileWithCrypto = useMutation({
+    mutationFn: async (profile) => {
+      if (!isAuthenticated || !user?.email) throw new Error('Please sign in first');
+      if (!profile || profile.status !== 'available') throw new Error('This profile is not available');
+      return profile;
+    },
+    onSuccess: (profile) => {
+      const amount = Number(profile.price || 0);
+      navigate(
+        `/dashboard/deposits?amount=${amount}&purpose=${encodeURIComponent(
+          `Verified profile purchase: ${profile.title}`
+        )}&kind=verified_profile&profileId=${profile.id}&profileTitle=${encodeURIComponent(profile.title)}`
+      );
+      toast.success('Submit deposit details to create your profile order.');
+    },
+    onError: (error) => toast.error(error?.message || 'Could not start crypto checkout'),
+  });
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
@@ -128,19 +316,100 @@ export default function DatingGuide() {
         </div>
       </div>
 
-      {/* Table of Contents */}
-      <Card className="mb-8 bg-muted/30">
-        <CardContent className="p-5">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contents</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {['Tools & Setup', 'Providers', 'Account Cloning', 'Account Creation', 'Browser Migration', 'Pictures', 'Tips', 'Calculations'].map((s) => (
-              <a key={s} href={`#${s.toLowerCase().replace(/[^a-z]/g, '-')}`} className="text-sm text-primary hover:underline flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {s}
-              </a>
-            ))}
-          </div>
+      {!hasAccess && (
+        <Card className="mb-6 border-primary/30 bg-primary/5">
+          <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="font-semibold">Unlock full Dating Guide for ${GUIDE_PRICE}</p>
+              <p className="text-sm text-muted-foreground">You can preview the content, but actions are locked until paid.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() =>
+                  unlockWithWallet.mutate(undefined, {
+                    onError: (error) => {
+                      const message = error?.message || '';
+                      if (message.toLowerCase().includes('insufficient')) {
+                        setInsufficientContext({ type: 'guide', amount: GUIDE_PRICE });
+                      }
+                    },
+                  })
+                }
+                disabled={unlockWithWallet.isPending || requestCrypto.isPending}
+              >
+                {unlockWithWallet.isPending ? 'Processing...' : 'Pay with Balance'}
+              </Button>
+              <Button variant="outline" onClick={() => requestCrypto.mutate()} disabled={unlockWithWallet.isPending || requestCrypto.isPending}>
+                Pay with Crypto
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card id="verified-profiles" className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 text-primary" />
+            Active & Verified Profiles
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            View profile details, what is included, status, and purchase instantly.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {verifiedProfiles.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No verified profiles listed yet.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {verifiedProfiles.map((profile) => {
+                const isSold = profile.status === 'sold';
+                const images = Array.isArray(profile.image_urls) ? profile.image_urls : [];
+                const preview = profile.primary_image_url || images[0] || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1000&q=80';
+                return (
+                  <div key={profile.id} className="border rounded-xl overflow-hidden bg-card">
+                    <img loading="lazy" decoding="async" src={preview} alt={profile.title} className="w-full h-44 object-cover" />
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold line-clamp-1">{profile.title}</p>
+                        <ProfileStatusBadge status={profile.status} />
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{profile.description || 'Verified profile ready for delivery.'}</p>
+                      {profile.profile_details && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{profile.profile_details}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold">${Number(profile.price || 0).toFixed(2)}</p>
+                        <Button size="sm" variant={isSold ? 'outline' : 'default'} disabled={isSold} onClick={() => {
+                          setSelectedProfile(profile);
+                          setSelectedImage(preview);
+                        }}>
+                          {isSold ? 'Sold Out' : 'View Details'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <div className={`relative ${!hasAccess ? 'opacity-60 pointer-events-none select-none' : ''}`}>
+        {/* Table of Contents */}
+        <Card className={`mb-8 bg-muted/30 ${!hasAccess ? 'pointer-events-none select-none' : ''}`}>
+          <CardContent className="p-5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contents</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {['Tools & Setup', 'Providers', 'Account Cloning', 'Account Creation', 'Browser Migration', 'Pictures', 'Tips', 'Calculations'].map((s) => (
+                <a key={s} href={`#${s.toLowerCase().replace(/[^a-z]/g, '-')}`} className="text-sm text-primary hover:underline flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {s}
+                </a>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Tools & Setup */}
       <Section id="tools---setup" title="Tools & Setup" icon={Wrench} color="bg-blue-500/10 text-blue-600" defaultOpen>
@@ -436,15 +705,135 @@ export default function DatingGuide() {
         </div>
       </Section>
 
-      {/* CTA */}
+      </div>
+
+      <Dialog open={!!selectedProfile} onOpenChange={(open) => !open && setSelectedProfile(null)}>
+        <DialogContent className="max-w-3xl">
+          {selectedProfile && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between pr-8 gap-3">
+                  <span>{selectedProfile.title}</span>
+                  <ProfileStatusBadge status={selectedProfile.status} />
+                </DialogTitle>
+                <DialogDescription>{selectedProfile.description || 'Verified profile package details.'}</DialogDescription>
+              </DialogHeader>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <img
+                    src={selectedImage || selectedProfile.primary_image_url}
+                    alt={selectedProfile.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-64 object-cover rounded-lg border"
+                  />
+                  <div className="flex gap-2 overflow-x-auto mt-2 pb-1">
+                    {[selectedProfile.primary_image_url, ...(Array.isArray(selectedProfile.image_urls) ? selectedProfile.image_urls : [])]
+                      .filter(Boolean)
+                      .map((img, idx) => (
+                        <button
+                          key={`${img}-${idx}`}
+                          onClick={() => setSelectedImage(img)}
+                          className={`rounded-md overflow-hidden border-2 flex-shrink-0 ${selectedImage === img ? 'border-primary' : 'border-transparent'}`}
+                        >
+                          <img loading="lazy" decoding="async" src={img} alt={`${selectedProfile.title}-${idx + 1}`} className="w-16 h-16 object-cover" />
+                        </button>
+                      ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="p-3 rounded-lg bg-muted/40">
+                    <p className="text-xs text-muted-foreground">Price</p>
+                    <p className="text-2xl font-bold">${Number(selectedProfile.price || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold mb-2">What you get</p>
+                    <ul className="space-y-1">
+                      {(Array.isArray(selectedProfile.included_items) ? selectedProfile.included_items : []).map((item) => (
+                        <li key={item} className="text-sm flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-600" /> {item}
+                        </li>
+                      ))}
+                      {(!Array.isArray(selectedProfile.included_items) || selectedProfile.included_items.length === 0) && (
+                        <li className="text-sm text-muted-foreground">No extra items listed by admin.</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Profile Details</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {selectedProfile.profile_details || 'No additional details added by admin.'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      className="flex-1"
+                      disabled={selectedProfile.status !== 'available' || buyProfileWithWallet.isPending || buyProfileWithCrypto.isPending}
+                      onClick={() =>
+                        buyProfileWithWallet.mutate(selectedProfile, {
+                          onError: (error) => {
+                            const message = error?.message || '';
+                            if (message.toLowerCase().includes('insufficient')) {
+                              setInsufficientContext({
+                                type: 'profile',
+                                amount: Number(selectedProfile.price || 0),
+                                profile: selectedProfile,
+                              });
+                            }
+                          },
+                        })
+                      }
+                    >
+                      {buyProfileWithWallet.isPending ? 'Processing...' : 'Pay with Balance'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      disabled={selectedProfile.status !== 'available' || buyProfileWithWallet.isPending || buyProfileWithCrypto.isPending}
+                      onClick={() => buyProfileWithCrypto.mutate(selectedProfile)}
+                    >
+                      Pay with Crypto
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CTA (always unlocked) */}
       <div className="mt-8 text-center">
         <p className="text-sm text-muted-foreground mb-3">Need help or want exclusive tools not listed here?</p>
         <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
           <Button className="gap-2">
-            Join Our Telegram <ExternalLink className="w-4 h-4" />
+            Get support on Telegram <ExternalLink className="w-4 h-4" />
           </Button>
         </a>
       </div>
+      <InsufficientBalanceDialog
+        open={!!insufficientContext}
+        onOpenChange={(open) => !open && setInsufficientContext(null)}
+        amount={insufficientContext?.amount || 0}
+        loading={unlockWithWallet.isPending || buyProfileWithWallet.isPending || requestCrypto.isPending || buyProfileWithCrypto.isPending}
+        onDeposit={() => {
+          setInsufficientContext(null);
+          navigate('/dashboard/deposits');
+        }}
+        onPayWithCrypto={() => {
+          if (!insufficientContext) return;
+          if (insufficientContext.type === 'guide') {
+            setInsufficientContext(null);
+            requestCrypto.mutate();
+            return;
+          }
+          if (insufficientContext.type === 'profile' && insufficientContext.profile) {
+            const profile = insufficientContext.profile;
+            setInsufficientContext(null);
+            buyProfileWithCrypto.mutate(profile);
+          }
+        }}
+      />
     </div>
   );
 }

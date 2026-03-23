@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -23,9 +23,33 @@ const walletAddresses = {
 
 export default function DashboardDeposits() {
   const { user } = useAuth();
+  const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const checkoutAmount = searchParams.get('amount') || '';
+  const checkoutPurpose = searchParams.get('purpose') || '';
+  const checkoutKind = searchParams.get('kind') || '';
+  const checkoutServiceId = searchParams.get('serviceId') || '';
+  const checkoutServiceTitle = searchParams.get('serviceTitle') || '';
+  const checkoutCategory = searchParams.get('category') || '';
+  const checkoutPackageName = searchParams.get('packageName') || '';
+  const checkoutQuantity = Number(searchParams.get('quantity') || 1);
+  const checkoutPlanName = searchParams.get('planName') || '';
+  const checkoutPlanTier = searchParams.get('planTier') || '';
+  const checkoutBilling = searchParams.get('billing') || '';
+  const checkoutNumberId = searchParams.get('numberId') || '';
+  const checkoutCountry = searchParams.get('country') || '';
+  const checkoutNumberType = searchParams.get('numberType') || '';
+  const checkoutProfileId = searchParams.get('profileId') || '';
+  const checkoutProfileTitle = searchParams.get('profileTitle') || '';
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ crypto_type: 'USDT', network: 'TRC20', amount: '', tx_hash: '' });
+  const [form, setForm] = useState({ crypto_type: 'USDT', network: 'TRC20', amount_crypto: '', tx_hash: '' });
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (checkoutAmount) {
+      setDialogOpen(true);
+      setForm((prev) => ({ ...prev, amount_crypto: '' }));
+    }
+  }, [checkoutAmount]);
 
   const { data: deposits = [], isLoading } = useQuery({
     queryKey: ['my-deposits', user?.email],
@@ -37,16 +61,108 @@ export default function DashboardDeposits() {
     enabled: !!user?.email,
   });
 
+  const { data: appSettings = [] } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key,value');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const createDeposit = useMutation({
     mutationFn: async (data) => {
-      const { data: inserted, error } = await supabase.from('deposits').insert(data).select();
+      const { data: inserted, error } = await supabase.from('deposits').insert(data).select().maybeSingle();
       if (error) throw error;
+
+      if (checkoutKind) {
+        const amount = Number(data.amount || checkoutAmount || 0);
+
+        if (checkoutKind === 'service') {
+          const { error: orderError } = await supabase.from('orders').insert({
+            user_email: user.email,
+            service_id: checkoutServiceId || null,
+            service_title: checkoutServiceTitle || checkoutPurpose || 'Service',
+            category: checkoutCategory || 'service',
+            package_name: `${checkoutPackageName || 'Package'} (Crypto)`,
+            quantity: checkoutQuantity || 1,
+            amount,
+            payment_method: 'crypto',
+            status: 'pending',
+            notes: `awaiting_deposit:${inserted?.id || ''}`,
+          });
+          if (orderError) throw orderError;
+        }
+
+        if (checkoutKind === 'subscription') {
+          const { error: orderError } = await supabase.from('orders').insert({
+            user_email: user.email,
+            service_title: `${checkoutPlanName || 'Plan'} Subscription`,
+            category: 'subscriptions',
+            package_name: `${checkoutPlanName || 'Plan'} (${checkoutBilling || 'monthly'}) - Crypto`,
+            quantity: 1,
+            amount,
+            payment_method: 'crypto',
+            status: 'pending',
+            notes: `plan_tier:${checkoutPlanTier || ''}; awaiting_deposit:${inserted?.id || ''}`,
+          });
+          if (orderError) throw orderError;
+        }
+
+        if (checkoutKind === 'dating_guide') {
+          const { error: orderError } = await supabase.from('orders').insert({
+            user_email: user.email,
+            service_title: 'Dating Guide Access',
+            category: 'dating_guide',
+            package_name: 'Guide Unlock (Crypto)',
+            quantity: 1,
+            amount,
+            payment_method: 'crypto',
+            status: 'pending',
+            notes: `awaiting_deposit:${inserted?.id || ''}`,
+          });
+          if (orderError) throw orderError;
+        }
+
+        if (checkoutKind === 'virtual_number') {
+          const { error: orderError } = await supabase.from('orders').insert({
+            user_email: user.email,
+            service_id: checkoutServiceId || null,
+            service_title: checkoutServiceTitle || 'Virtual Number',
+            category: 'virtual_numbers',
+            package_name: `${checkoutCountry || 'Number'} ${checkoutNumberType || 'sms'} (Crypto)`,
+            quantity: 1,
+            amount,
+            payment_method: 'crypto',
+            status: 'pending',
+            notes: `virtual_number_id:${checkoutNumberId || ''}; awaiting_deposit:${inserted?.id || ''}`,
+          });
+          if (orderError) throw orderError;
+        }
+
+        if (checkoutKind === 'verified_profile') {
+          const { error: orderError } = await supabase.from('orders').insert({
+            user_email: user.email,
+            service_title: checkoutProfileTitle || 'Verified Profile',
+            category: 'verified_profile',
+            package_name: `${checkoutProfileTitle || 'Profile'} (Crypto)`,
+            quantity: 1,
+            amount,
+            payment_method: 'crypto',
+            status: 'pending',
+            notes: `verified_profile_id:${checkoutProfileId || ''}; awaiting_deposit:${inserted?.id || ''}`,
+          });
+          if (orderError) throw orderError;
+        }
+      }
+
       return inserted;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-deposits'] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
       setDialogOpen(false);
-      setForm({ crypto_type: 'USDT', network: 'TRC20', amount: '', tx_hash: '' });
+      setForm({ crypto_type: 'USDT', network: 'TRC20', amount_crypto: '', tx_hash: '' });
       toast.success('Deposit submitted for review');
     },
   });
@@ -56,19 +172,52 @@ export default function DashboardDeposits() {
     toast.success('Address copied');
   };
 
+  const settingsMap = appSettings.reduce((acc, item) => {
+    acc[item.key] = item.value;
+    return acc;
+  }, {});
+
+  const configuredAddresses = {
+    'USDT-TRC20': settingsMap.wallet_usdt_trc20 || walletAddresses['USDT-TRC20'],
+    'USDT-ERC20': settingsMap.wallet_usdt_erc20 || walletAddresses['USDT-ERC20'],
+    'ETH-ERC20': settingsMap.wallet_eth || walletAddresses['ETH-ERC20'],
+    'BTC-BTC': settingsMap.wallet_btc || walletAddresses['BTC-BTC'],
+  };
+
   const addressKey = `${form.crypto_type}-${form.network}`;
-  const walletAddr = walletAddresses[addressKey] || walletAddresses['USDT-TRC20'];
+  const walletAddr = configuredAddresses[addressKey] || configuredAddresses['USDT-TRC20'];
+
+  const configuredRates = {
+    USDT: Number(settingsMap.rate_usdt || 1),
+    ETH: Number(settingsMap.rate_eth || 3000),
+    BTC: Number(settingsMap.rate_btc || 60000),
+  };
+
+  const selectedRate = configuredRates[form.crypto_type] || 1;
+  const cryptoAmount = Number(form.amount_crypto || 0);
+  const convertedUsd = Number((cryptoAmount * selectedRate).toFixed(2));
+  const usdAmount = checkoutAmount ? Number(checkoutAmount) : convertedUsd;
 
   const handleSubmit = () => {
-    if (!form.amount || parseFloat(form.amount) <= 0) return;
+    if (!form.amount_crypto || cryptoAmount <= 0) return;
+    if (!usdAmount || usdAmount <= 0) return;
     createDeposit.mutate({
       user_email: user.email,
-      amount: parseFloat(form.amount),
+      amount: usdAmount,
       crypto_type: form.crypto_type,
       network: form.network,
       wallet_address: walletAddr,
       tx_hash: form.tx_hash,
       status: 'pending',
+      admin_notes: [
+        `crypto_amount:${cryptoAmount}`,
+        `rate:${selectedRate}`,
+        `usd_amount:${usdAmount}`,
+        checkoutKind ? `checkout_kind:${checkoutKind}` : null,
+        checkoutPurpose ? `purpose:${checkoutPurpose}` : null,
+      ]
+        .filter(Boolean)
+        .join('; '),
     });
   };
 
@@ -125,8 +274,21 @@ export default function DashboardDeposits() {
               </div>
 
               <div>
-                <Label className="text-xs">Amount (USD)</Label>
-                <Input type="number" placeholder="100.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                <Label className="text-xs">Amount ({form.crypto_type})</Label>
+                <Input
+                  type="number"
+                  placeholder={form.crypto_type === 'USDT' ? '100' : form.crypto_type === 'ETH' ? '0.05' : '0.002'}
+                  value={form.amount_crypto}
+                  onChange={(e) => setForm({ ...form, amount_crypto: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Rate: 1 {form.crypto_type} = ${selectedRate.toLocaleString()} USD
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {checkoutAmount
+                    ? `Order requires fixed $${Number(checkoutAmount).toFixed(2)} USD credit`
+                    : `Converted amount: $${convertedUsd.toFixed(2)} USD`}
+                </p>
               </div>
 
               <div>
@@ -142,6 +304,20 @@ export default function DashboardDeposits() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {checkoutKind && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold">Checkout in progress</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Purpose: {checkoutPurpose || 'Order payment'} · Amount (USD): ${checkoutAmount || '0'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Submit your payment proof to create a pending order tied to this checkout.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <div className="overflow-x-auto">

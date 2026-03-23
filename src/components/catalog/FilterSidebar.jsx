@@ -6,6 +6,8 @@ import { X } from 'lucide-react';
 
 const categories = [
   { value: 'all', label: 'All Services' },
+  { value: 'dating_guide', label: 'Dating Guide' },
+  { value: 'verified_profiles', label: 'Verified Profiles' },
   { value: 'proxy_tools', label: 'Proxy Tools' },
   { value: 'virtual_numbers', label: 'Virtual Numbers' },
   { value: 'social_growth', label: 'Social Growth' },

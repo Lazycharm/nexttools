@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Star, Clock, Check, ArrowLeft, LifeBuoy, Shield, Zap } from 'lucide-react';
+import { toast } from 'sonner';
+import VirtualNumberPanel from '@/components/catalog/VirtualNumberPanel';
+import InsufficientBalanceDialog from '@/components/checkout/InsufficientBalanceDialog';
 
 export default function ServiceDetail() {
-  const params = new URLSearchParams(window.location.search);
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const serviceId = window.location.pathname.split('/').pop();
+  const [insufficientPayload, setInsufficientPayload] = React.useState(null);
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
@@ -23,6 +31,117 @@ export default function ServiceDetail() {
 
   const service = services.find((s) => s.id === serviceId);
   const relatedServices = services.filter((s) => s.category === service?.category && s.id !== serviceId).slice(0, 3);
+
+  const purchaseMutation = useMutation({
+    mutationFn: async ({ packageName, amount, quantity = 1 }) => {
+      if (!isAuthenticated || !user?.id || !user?.email) {
+        throw new Error('Please sign in to place an order');
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+
+      const walletBalance = profile?.wallet_balance || 0;
+      if (walletBalance < amount) {
+        throw new Error('Insufficient wallet balance. Please make a deposit first.');
+      }
+
+      const { error: walletError } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: walletBalance - amount })
+        .eq('id', user.id);
+      if (walletError) throw walletError;
+
+      const { error: orderError } = await supabase.from('orders').insert({
+        user_email: user.email,
+        service_id: service.id,
+        service_title: service.title,
+        category: service.category,
+        package_name: packageName,
+        quantity,
+        amount,
+        payment_method: 'wallet',
+        delivery_estimate: service.delivery_estimate,
+        status: 'pending',
+      });
+      if (orderError) throw orderError;
+
+      await supabase
+        .from('services')
+        .update({ total_orders: (service.total_orders || 0) + 1 })
+        .eq('id', service.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+      toast.success('Order placed successfully');
+      navigate('/dashboard/orders');
+    },
+    onError: (error) => {
+      const message = error?.message || 'Failed to place order';
+      toast.error(message);
+      if (message.toLowerCase().includes('insufficient')) return;
+      if (message.toLowerCase().includes('sign in')) {
+        navigate('/auth');
+      }
+    },
+  });
+
+  const purchasePackage = (pkg) => {
+    const payload = {
+      packageName: pkg?.name || 'Base Package',
+      amount: Number(pkg?.price || service?.base_price || 0),
+      quantity: Number(pkg?.quantity || 1),
+    };
+    purchaseMutation.mutate(payload, {
+      onError: (error) => {
+        const message = error?.message || '';
+        if (message.toLowerCase().includes('insufficient')) {
+          setInsufficientPayload(payload);
+        }
+      },
+    });
+  };
+
+  const cryptoOrderMutation = useMutation({
+    mutationFn: async ({ packageName, amount, quantity = 1 }) => {
+      if (!isAuthenticated || !user?.email) throw new Error('Please sign in to continue');
+      return { packageName, amount, quantity };
+    },
+    onSuccess: (variables) => {
+      navigate(
+        `/dashboard/deposits?amount=${variables.amount}&purpose=${encodeURIComponent(service.title)}&kind=service&serviceId=${service.id}&serviceTitle=${encodeURIComponent(
+          service.title
+        )}&category=${encodeURIComponent(service.category || 'service')}&packageName=${encodeURIComponent(
+          variables.packageName
+        )}&quantity=${variables.quantity}`
+      );
+      toast.success('Complete deposit to place this crypto order.');
+    },
+    onError: (error) => {
+      toast.error(error?.message || 'Could not start crypto checkout');
+      if ((error?.message || '').toLowerCase().includes('sign in')) navigate('/auth');
+    },
+  });
+
+  const payWithCrypto = (pkg = null) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to continue');
+      navigate('/auth');
+      return;
+    }
+    cryptoOrderMutation.mutate({
+      packageName: pkg?.name || 'Base Package',
+      amount: Number(pkg?.price || service?.base_price || 0),
+      quantity: Number(pkg?.quantity || 1),
+    });
+  };
 
   if (!service) {
     return (
@@ -101,7 +220,23 @@ export default function ServiceDetail() {
                           ))}
                         </ul>
                       )}
-                      <Button className="w-full mt-4" size="sm">Select Package</Button>
+                      <Button
+                        className="w-full mt-4"
+                        size="sm"
+                        disabled={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+                        onClick={() => purchasePackage(pkg)}
+                      >
+                        {purchaseMutation.isPending ? 'Processing...' : 'Select Package'}
+                      </Button>
+                      <Button
+                        className="w-full mt-2"
+                        variant="ghost"
+                        size="sm"
+                        disabled={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+                        onClick={() => payWithCrypto(pkg)}
+                      >
+                        {cryptoOrderMutation.isPending ? 'Starting crypto checkout...' : 'Pay with Crypto'}
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -122,6 +257,13 @@ export default function ServiceDetail() {
               </Accordion>
             </div>
           )}
+
+          {service.category === 'virtual_numbers' && (
+            <div>
+              <h2 className="text-xl font-bold mb-4">Available Numbers</h2>
+              <VirtualNumberPanel service={service} />
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -131,8 +273,32 @@ export default function ServiceDetail() {
                 <p className="text-sm text-muted-foreground">Starting from</p>
                 <p className="text-4xl font-extrabold text-foreground mt-1">${service.base_price}</p>
               </div>
-              <Button className="w-full mb-3" size="lg">Purchase Now</Button>
-              <Button variant="outline" className="w-full" size="lg">Add to Cart</Button>
+              <Button
+                className="w-full mb-3"
+                size="lg"
+                disabled={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+                onClick={() => purchasePackage(null)}
+              >
+                {purchaseMutation.isPending ? 'Processing...' : 'Purchase Now'}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full mb-3"
+                size="lg"
+                disabled={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+                onClick={() => purchasePackage(null)}
+              >
+                {purchaseMutation.isPending ? 'Processing...' : 'Quick Buy'}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                size="sm"
+                disabled={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+                onClick={() => payWithCrypto(null)}
+              >
+                {cryptoOrderMutation.isPending ? 'Starting crypto checkout...' : 'Pay with Crypto Instead'}
+              </Button>
 
               <div className="mt-6 space-y-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -165,6 +331,22 @@ export default function ServiceDetail() {
           )}
         </div>
       </div>
+      <InsufficientBalanceDialog
+        open={!!insufficientPayload}
+        onOpenChange={(open) => !open && setInsufficientPayload(null)}
+        amount={insufficientPayload?.amount || 0}
+        loading={purchaseMutation.isPending || cryptoOrderMutation.isPending}
+        onDeposit={() => {
+          setInsufficientPayload(null);
+          navigate('/dashboard/deposits');
+        }}
+        onPayWithCrypto={() => {
+          if (!insufficientPayload) return;
+          const payload = insufficientPayload;
+          setInsufficientPayload(null);
+          cryptoOrderMutation.mutate(payload);
+        }}
+      />
     </div>
   );
 }

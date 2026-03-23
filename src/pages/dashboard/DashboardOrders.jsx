@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
@@ -66,13 +68,14 @@ export default function DashboardOrders() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Access</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No orders found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No orders found</TableCell></TableRow>
               ) : (
                 filtered.map((order) => (
                   <TableRow key={order.id}>
@@ -83,6 +86,11 @@ export default function DashboardOrders() {
                       <Badge variant="secondary" className={`text-xs ${statusColors[order.status]}`}>{order.status}</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
+                    <TableCell>
+                      <Link to={`/dashboard/orders/${order.id}`}>
+                        <Button size="sm" variant="outline">Open</Button>
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))
               )}

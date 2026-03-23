@@ -135,3 +135,66 @@ create table profiles (
   total_deposits numeric default 0,
   created_at timestamptz default now()
 );
+
+-- virtual_numbers
+create table virtual_numbers (
+  id uuid primary key default gen_random_uuid(),
+  country_code text not null,
+  country_name text not null,
+  number_value text not null,
+  number_masked text not null,
+  number_type text default 'sms',
+  provider text,
+  price numeric default 2.50,
+  is_available boolean default true,
+  created_at timestamptz default now()
+);
+
+-- virtual_number_orders
+create table virtual_number_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id),
+  user_email text not null,
+  virtual_number_id uuid references virtual_numbers(id),
+  order_id uuid references orders(id),
+  amount numeric,
+  status text default 'approved',
+  approved_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+-- verified_profiles (dating marketplace)
+create table if not exists verified_profiles (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  price numeric not null default 20,
+  status text default 'available',
+  category text default 'dating',
+  primary_image_url text,
+  image_urls jsonb,
+  profile_details text,
+  included_items text[],
+  admin_notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- profile setup requests (subscription delivery workflow)
+create table if not exists profile_setup_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_email text not null,
+  subscription_id uuid references subscriptions(id),
+  plan_tier text,
+  request_type text default 'custom',
+  existing_profile_id uuid references verified_profiles(id),
+  instagram_username text,
+  dating_app text,
+  social_platform text,
+  image_urls jsonb,
+  notes text,
+  status text default 'pending',
+  admin_notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);

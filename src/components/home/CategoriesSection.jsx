@@ -94,6 +94,8 @@ export default function CategoriesSection() {
         <img
           src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&q=80"
           alt="More tools"
+          loading="lazy"
+          decoding="async"
           className="w-full h-48 object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/90 to-purple-600/80 flex items-center justify-between px-8">

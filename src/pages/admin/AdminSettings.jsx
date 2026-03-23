@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
-  Settings, CreditCard, MessageCircle, Globe, Bell, Shield, Save, Copy, Check, Eye, EyeOff
+  Settings, CreditCard, MessageCircle, Globe, Bell, Shield, Save, Copy, Check, Eye, EyeOff, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,17 @@ const SETTINGS_SCHEMA = {
       { key: 'support_email', label: 'Support Email', placeholder: 'support@toolstack.io', type: 'email' },
       { key: 'min_deposit', label: 'Minimum Deposit ($)', placeholder: '10', type: 'number' },
       { key: 'maintenance_mode', label: 'Maintenance Mode', placeholder: 'false', type: 'text' },
+    ],
+  },
+  homepage: {
+    label: 'Homepage Banner Images',
+    icon: Globe,
+    color: 'bg-fuchsia-500/10 text-fuchsia-600',
+    fields: [
+      { key: 'hero_collage_1', label: 'Hero Image 1 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
+      { key: 'hero_collage_2', label: 'Hero Image 2 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
+      { key: 'hero_collage_3', label: 'Hero Image 3 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
+      { key: 'hero_collage_4', label: 'Hero Image 4 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
     ],
   },
   payments: {
@@ -74,7 +86,23 @@ const SETTINGS_SCHEMA = {
       { key: 'allowed_countries', label: 'Allowed Countries (comma separated, empty = all)', placeholder: 'US,UK,CA,AU', type: 'text' },
     ],
   },
+  pricing: {
+    label: 'Pricing Plans',
+    icon: CreditCard,
+    color: 'bg-cyan-500/10 text-cyan-600',
+    fields: [
+      { key: 'pricing_plans_json', label: 'Plans JSON', placeholder: 'Paste pricing plans JSON array', type: 'textarea' },
+    ],
+  },
 };
+
+const DEFAULT_PRICING_PLANS_JSON = JSON.stringify([
+  { name: 'Starter', monthly: 50, quarterly: 135, yearly: 480, tier: 'starter', features: { services: 5, proxies: 'Basic', support: 'Email', delivery: 'Standard', verifiedProfiles: '0', extraProfile: 'N/A', api: false, manager: false, priority: false, refills: false } },
+  { name: 'Growth', monthly: 99, quarterly: 267, yearly: 950, tier: 'growth', popular: true, features: { services: 15, proxies: 'Premium', support: 'Priority', delivery: 'Fast', verifiedProfiles: '1 profile setup (existing or custom)', extraProfile: '$10 each extra setup', api: true, manager: false, priority: true, refills: true } },
+  { name: 'Pro', monthly: 179, quarterly: 483, yearly: 1716, tier: 'pro', features: { services: 'Unlimited', proxies: 'Elite', support: '24/7', delivery: 'Instant', verifiedProfiles: '3 profile setups (existing or custom)', extraProfile: 'Priority team handling', api: true, manager: true, priority: true, refills: true } },
+  { name: 'Elite', monthly: 299, quarterly: 807, yearly: 2868, tier: 'elite', features: { services: 'Unlimited', proxies: 'Elite+', support: 'Dedicated', delivery: 'Instant', verifiedProfiles: '5 profile setups', extraProfile: 'White-glove setup', api: true, manager: true, priority: true, refills: true } },
+  { name: 'Agency', monthly: 499, quarterly: 1347, yearly: 4788, tier: 'agency', features: { services: 'Unlimited', proxies: 'Custom', support: 'Dedicated Team', delivery: 'Instant', verifiedProfiles: '10 profile setups', extraProfile: 'Team onboarding support', api: true, manager: true, priority: true, refills: true } },
+], null, 2);
 
 function CopyButton({ value }) {
   const [copied, setCopied] = useState(false);
@@ -90,7 +118,7 @@ function CopyButton({ value }) {
   );
 }
 
-function SettingsSection({ section, sectionKey, values, onChange, onSave, saving }) {
+function SettingsSection({ section, sectionKey, values, onChange, onSave, saving, onUploadImage, uploadingField }) {
   const Icon = section.icon;
   const [showSecrets, setShowSecrets] = useState({});
 
@@ -113,13 +141,39 @@ function SettingsSection({ section, sectionKey, values, onChange, onSave, saving
             <div key={field.key} className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{field.label}</Label>
               <div className="flex gap-2">
-                <Input
-                  type={isSecret && !shown ? 'password' : field.type === 'number' ? 'number' : 'text'}
-                  value={val}
-                  onChange={(e) => onChange(field.key, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="font-mono text-sm"
-                />
+                {field.type === 'textarea' ? (
+                  <Textarea
+                    value={val}
+                    onChange={(e) => onChange(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    rows={10}
+                    className="font-mono text-xs"
+                  />
+                ) : (
+                  <Input
+                    type={isSecret && !shown ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                    value={val}
+                    onChange={(e) => onChange(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    className="font-mono text-sm"
+                  />
+                )}
+                {field.type === 'image_url' && (
+                  <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs cursor-pointer hover:bg-accent transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    {uploadingField === field.key ? 'Uploading...' : 'Upload'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onUploadImage(field.key, file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                )}
                 {isSecret && (
                   <Button
                     type="button" variant="ghost" size="icon"
@@ -129,12 +183,39 @@ function SettingsSection({ section, sectionKey, values, onChange, onSave, saving
                     {shown ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </Button>
                 )}
-                {val && <CopyButton value={val} />}
+                {val && field.type !== 'textarea' && <CopyButton value={val} />}
               </div>
+              {field.key === 'pricing_plans_json' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Format must be a JSON array of plans. If left empty, the site uses current default plans.
+                </p>
+              )}
+              {field.type === 'image_url' && val && (
+                <div className="mt-2">
+                  <img
+                    src={val}
+                    alt={field.label}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-20 w-32 rounded-md object-cover border"
+                  />
+                </div>
+              )}
             </div>
           );
         })}
         <div className="pt-2">
+          {sectionKey === 'pricing' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mr-2"
+              onClick={() => onChange('pricing_plans_json', DEFAULT_PRICING_PLANS_JSON)}
+            >
+              Load Current Plans Template
+            </Button>
+          )}
           <Button size="sm" className="gap-2" onClick={() => onSave(sectionKey)} disabled={saving}>
             <Save className="w-3.5 h-3.5" />
             {saving ? 'Saving...' : 'Save Section'}
@@ -149,6 +230,7 @@ export default function AdminSettings() {
   const queryClient = useQueryClient();
   const [values, setValues] = useState({});
   const [savingSection, setSavingSection] = useState(null);
+  const [uploadingField, setUploadingField] = useState('');
 
   const { data: settingsRecords = [], isLoading } = useQuery({
     queryKey: ['app-settings'],
@@ -188,9 +270,38 @@ export default function AdminSettings() {
     setValues((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleUploadImage = async (fieldKey, file) => {
+    try {
+      setUploadingField(fieldKey);
+      const safeName = file.name.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '');
+      const filePath = `hero/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('homepage-hero').upload(filePath, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('homepage-hero').getPublicUrl(filePath);
+      handleChange(fieldKey, data.publicUrl);
+      toast.success('Image uploaded. Save section to persist.');
+    } catch (error) {
+      toast.error(error?.message || 'Upload failed');
+    } finally {
+      setUploadingField('');
+    }
+  };
+
   const handleSave = async (sectionKey) => {
     setSavingSection(sectionKey);
     const section = SETTINGS_SCHEMA[sectionKey];
+    if (sectionKey === 'pricing' && values.pricing_plans_json) {
+      try {
+        const parsed = JSON.parse(values.pricing_plans_json);
+        if (!Array.isArray(parsed)) {
+          throw new Error('Pricing plans JSON must be an array.');
+        }
+      } catch (error) {
+        setSavingSection(null);
+        toast.error(error?.message || 'Invalid pricing plans JSON');
+        return;
+      }
+    }
     const promises = section.fields.map((field) =>
       upsertMutation.mutateAsync({ key: field.key, value: values[field.key] ?? '', category: sectionKey })
     );
@@ -258,6 +369,8 @@ export default function AdminSettings() {
           onChange={handleChange}
           onSave={handleSave}
           saving={savingSection === key}
+          onUploadImage={handleUploadImage}
+          uploadingField={uploadingField}
         />
       ))}
     </div>

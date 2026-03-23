@@ -11,6 +11,22 @@ import { toast } from 'sonner';
 
 export default function AdminDeposits() {
   const queryClient = useQueryClient();
+  const parseNotes = (text) => {
+    const result = {};
+    `${text || ''}`
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const idx = part.indexOf(':');
+        if (idx > 0) {
+          const key = part.slice(0, idx).trim();
+          const value = part.slice(idx + 1).trim();
+          result[key] = value;
+        }
+      });
+    return result;
+  };
 
   const { data: deposits = [] } = useQuery({
     queryKey: ['admin-deposits'],
@@ -47,21 +63,77 @@ export default function AdminDeposits() {
       return;
     }
 
-    // Also credit user balance
-    const { data: user } = await supabase.from('profiles').select('*').eq('email', deposit.user_email).maybeSingle();
-    if (user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          wallet_balance: (user.wallet_balance || 0) + deposit.amount,
-          total_deposits: (user.total_deposits || 0) + deposit.amount,
-        })
-        .eq('id', user.id);
-      if (profileError) throw profileError;
+    const notesMap = parseNotes(approvedRow.admin_notes);
+    const checkoutKind = notesMap.checkout_kind || '';
+
+    // For checkout-linked crypto payments, complete linked orders/subscriptions.
+    // Do NOT credit wallet balance in this branch.
+    if (checkoutKind) {
+      const { data: linkedOrders, error: linkedError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_email', deposit.user_email)
+        .ilike('notes', `%awaiting_deposit:${deposit.id}%`);
+      if (linkedError) throw linkedError;
+
+      for (const order of linkedOrders || []) {
+        if (order.status === 'pending') {
+          const { error: orderUpdateError } = await supabase
+            .from('orders')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', order.id);
+          if (orderUpdateError) throw orderUpdateError;
+        }
+
+        if (order.category === 'subscriptions') {
+          const now = new Date();
+          const end = new Date(now);
+          const pkg = `${order.package_name || ''}`.toLowerCase();
+          const billing = pkg.includes('yearly') ? 'yearly' : pkg.includes('quarterly') ? 'quarterly' : 'monthly';
+          if (billing === 'yearly') end.setFullYear(end.getFullYear() + 1);
+          if (billing === 'quarterly') end.setMonth(end.getMonth() + 3);
+          if (billing === 'monthly') end.setMonth(end.getMonth() + 1);
+
+          const planTierMatch = `${order.notes || ''}`.match(/plan_tier:([^;]+)/i);
+          const planTier = planTierMatch?.[1]?.trim() || 'growth';
+          const planName = `${order.service_title || 'Plan'}`.replace(/\s+Subscription$/i, '').trim();
+
+          const { error: subError } = await supabase.from('subscriptions').insert({
+            user_email: order.user_email,
+            plan_name: planName || 'Plan',
+            plan_tier: planTier,
+            price: Number(order.amount || approvedRow.amount || 0),
+            billing_cycle: billing,
+            status: 'active',
+            start_date: now.toISOString().slice(0, 10),
+            end_date: end.toISOString().slice(0, 10),
+            auto_renew: true,
+          });
+          if (subError) throw subError;
+        }
+      }
+    } else {
+      // Normal wallet top-up deposit: credit user balance.
+      const { data: user } = await supabase.from('profiles').select('*').eq('email', deposit.user_email).maybeSingle();
+      if (user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            wallet_balance: (user.wallet_balance || 0) + deposit.amount,
+            total_deposits: (user.total_deposits || 0) + deposit.amount,
+          })
+          .eq('id', user.id);
+        if (profileError) throw profileError;
+      }
     }
+
     queryClient.invalidateQueries({ queryKey: ['admin-deposits'] });
     queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-    toast.success('Deposit approved and balance credited');
+    queryClient.invalidateQueries({ queryKey: ['my-deposits'] });
+    queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['my-subs'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-subs-list'] });
+    toast.success(checkoutKind ? 'Checkout approved and order activated' : 'Deposit approved and balance credited');
   };
 
   const handleReject = (deposit) => {

@@ -9,20 +9,11 @@ const footerLinks = {
     { label: 'Proxy Tools', path: '/catalog?category=proxy_tools' },
     { label: 'Virtual Numbers', path: '/catalog?category=virtual_numbers' },
   ],
-  Company: [
-    { label: 'About', path: '/' },
-    { label: 'Blog', path: '/' },
-    { label: 'Careers', path: '/' },
-  ],
   Support: [
     { label: 'Help Center', path: '/support' },
     { label: 'Contact', path: '/support' },
-    { label: 'Status', path: '/' },
-  ],
-  Legal: [
-    { label: 'Privacy Policy', path: '/' },
-    { label: 'Terms of Service', path: '/' },
-    { label: 'Cookie Policy', path: '/' },
+    { label: 'Dating Guide', path: '/guides/dating' },
+    { label: 'Sign In', path: '/auth' },
   ],
 };
 
@@ -30,8 +21,8 @@ export default function Footer() {
   return (
     <footer className="bg-card border-t border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          <div className="col-span-2 md:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+          <div>
             <Link to="/" className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Zap className="w-4.5 h-4.5 text-primary-foreground" />

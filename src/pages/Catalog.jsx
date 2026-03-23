@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import ServiceCard from '@/components/catalog/ServiceCard';
@@ -9,6 +10,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Search, SlidersHorizontal } from 'lucide-react';
 
 export default function Catalog() {
+  const navigate = useNavigate();
   const params = new URLSearchParams(window.location.search);
   const initialCategory = params.get('category') || 'all';
 
@@ -39,7 +41,11 @@ export default function Catalog() {
       );
     }
     if (filters.category !== 'all') {
-      result = result.filter((s) => s.category === filters.category);
+      if (filters.category === 'dating_guide') {
+        result = result.filter((s) => ['dating_guide', 'blue_tick'].includes(s.category));
+      } else {
+        result = result.filter((s) => s.category === filters.category);
+      }
     }
     if (filters.quality !== 'all') {
       result = result.filter((s) => s.quality_badge === filters.quality);
@@ -55,6 +61,18 @@ export default function Catalog() {
 
     return result;
   }, [services, search, filters]);
+
+  const handleFilterChange = (nextFilters) => {
+    if (nextFilters.category === 'dating_guide') {
+      navigate('/guides/dating');
+      return;
+    }
+    if (nextFilters.category === 'verified_profiles') {
+      navigate('/guides/dating#verified-profiles');
+      return;
+    }
+    setFilters(nextFilters);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -81,7 +99,7 @@ export default function Catalog() {
           </SheetTrigger>
           <SheetContent side="left" className="w-72">
             <div className="mt-6">
-              <FilterSidebar filters={filters} onFilterChange={setFilters} />
+              <FilterSidebar filters={filters} onFilterChange={handleFilterChange} />
             </div>
           </SheetContent>
         </Sheet>
@@ -90,7 +108,7 @@ export default function Catalog() {
       <div className="flex gap-8">
         <aside className="hidden lg:block w-60 flex-shrink-0">
           <div className="sticky top-24">
-            <FilterSidebar filters={filters} onFilterChange={setFilters} />
+            <FilterSidebar filters={filters} onFilterChange={handleFilterChange} />
           </div>
         </aside>
 

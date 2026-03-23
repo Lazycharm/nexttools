@@ -68,6 +68,23 @@ export default function DashboardOverview() {
         <StatCard title="Subscriptions" value={activeSubs.length} subtitle="Currently active" icon={Star} />
       </div>
 
+      <Card>
+        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Ready to place a new order?</p>
+            <p className="text-sm text-muted-foreground">Browse services or compare plans directly from your dashboard.</p>
+          </div>
+          <div className="flex gap-2">
+            <Link to="/catalog">
+              <Button size="sm">Browse Services</Button>
+            </Link>
+            <Link to="/pricing">
+              <Button size="sm" variant="outline">View Pricing</Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="pb-3">
