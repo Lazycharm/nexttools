@@ -17,10 +17,38 @@ const statusColors = {
 };
 
 export default function AdminOverview() {
-  const { data: orders = [] } = useQuery({ queryKey: ['admin-orders'], queryFn: async () => (await supabase.from('orders').select('*').order('created_at', { ascending: false })).data ?? [] });
-  const { data: deposits = [] } = useQuery({ queryKey: ['admin-deposits'], queryFn: async () => (await supabase.from('deposits').select('*').order('created_at', { ascending: false })).data ?? [] });
-  const { data: tickets = [] } = useQuery({ queryKey: ['admin-tickets'], queryFn: async () => (await supabase.from('tickets').select('*').order('created_at', { ascending: false })).data ?? [] });
-  const { data: services = [] } = useQuery({ queryKey: ['admin-services'], queryFn: async () => (await supabase.from('services').select('*').order('created_at', { ascending: false })).data ?? [] });
+  const { data: orders = [] } = useQuery({
+    queryKey: ['admin-orders'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: deposits = [] } = useQuery({
+    queryKey: ['admin-deposits'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deposits').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: tickets = [] } = useQuery({
+    queryKey: ['admin-tickets'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tickets').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: services = [] } = useQuery({
+    queryKey: ['admin-services'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('services').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const pendingDeposits = deposits.filter((d) => d.status === 'pending');
   const openTickets = tickets.filter((t) => ['open', 'in_progress'].includes(t.status));

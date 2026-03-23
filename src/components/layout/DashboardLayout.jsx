@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   LayoutDashboard, ShoppingCart, Wallet, CreditCard, LifeBuoy,
@@ -84,8 +84,12 @@ function SidebarContent({ user, onClose, onLogout }) {
 }
 
 export default function DashboardLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  if (!isLoading && !isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background flex">

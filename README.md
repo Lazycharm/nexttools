@@ -23,6 +23,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ## Supabase schema
 
 Run the SQL in `supabase/schema.sql` inside your Supabase SQL Editor.
+Then run `supabase/policies.sql` to enable RLS, admin/user policies, and auto-profile creation trigger.
 
 ## Netlify deployment
 

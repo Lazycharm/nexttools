@@ -7,6 +7,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const hydrateUser = async (authUser) => {
+    if (!authUser) return null;
+
+    const profilePayload = {
+      id: authUser.id,
+      email: authUser.email,
+      full_name: authUser.user_metadata?.full_name ?? '',
+    };
+
+    await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      full_name: profile?.full_name ?? authUser.user_metadata?.full_name ?? '',
+      role: profile?.role ?? 'user',
+      wallet_balance: profile?.wallet_balance ?? 0,
+      total_deposits: profile?.total_deposits ?? 0,
+      created_at: profile?.created_at ?? authUser.created_at,
+    };
+  };
+
   useEffect(() => {
     const bootstrap = async () => {
       const { data } = await supabase.auth.getSession();
@@ -18,21 +46,8 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      setUser({
-        id: authUser.id,
-        email: authUser.email,
-        full_name: profile?.full_name ?? authUser.user_metadata?.full_name ?? '',
-        role: profile?.role ?? 'user',
-        wallet_balance: profile?.wallet_balance ?? 0,
-        total_deposits: profile?.total_deposits ?? 0,
-        created_at: profile?.created_at ?? authUser.created_at,
-      });
+      const hydratedUser = await hydrateUser(authUser);
+      setUser(hydratedUser);
       setIsLoading(false);
     };
 
@@ -47,21 +62,8 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      setUser({
-        id: authUser.id,
-        email: authUser.email,
-        full_name: profile?.full_name ?? authUser.user_metadata?.full_name ?? '',
-        role: profile?.role ?? 'user',
-        wallet_balance: profile?.wallet_balance ?? 0,
-        total_deposits: profile?.total_deposits ?? 0,
-        created_at: profile?.created_at ?? authUser.created_at,
-      });
+      const hydratedUser = await hydrateUser(authUser);
+      setUser(hydratedUser);
     });
 
     return () => subscription.unsubscribe();

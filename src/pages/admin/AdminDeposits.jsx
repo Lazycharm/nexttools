@@ -34,19 +34,34 @@ export default function AdminDeposits() {
   });
 
   const handleApprove = async (deposit) => {
-    await updateDeposit.mutateAsync({ id: deposit.id, data: { status: 'approved', credited_amount: deposit.amount } });
+    const { data: approvedRow, error: approveError } = await supabase
+      .from('deposits')
+      .update({ status: 'approved', credited_amount: deposit.amount })
+      .eq('id', deposit.id)
+      .eq('status', 'pending')
+      .select('*')
+      .maybeSingle();
+    if (approveError) throw approveError;
+    if (!approvedRow) {
+      toast.error('Deposit was already processed');
+      return;
+    }
+
     // Also credit user balance
     const { data: user } = await supabase.from('profiles').select('*').eq('email', deposit.user_email).maybeSingle();
     if (user) {
-      await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           wallet_balance: (user.wallet_balance || 0) + deposit.amount,
           total_deposits: (user.total_deposits || 0) + deposit.amount,
         })
         .eq('id', user.id);
+      if (profileError) throw profileError;
     }
+    queryClient.invalidateQueries({ queryKey: ['admin-deposits'] });
     queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    toast.success('Deposit approved and balance credited');
   };
 
   const handleReject = (deposit) => {

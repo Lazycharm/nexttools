@@ -109,10 +109,10 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={() => window.location.assign('/dashboard')}>
+                <Button variant="ghost" size="sm" onClick={() => window.location.assign('/auth')}>
                   Sign in
                 </Button>
-                <Button size="sm" onClick={() => window.location.assign('/dashboard')}>
+                <Button size="sm" onClick={() => window.location.assign('/auth')}>
                   Get Started
                 </Button>
               </>
@@ -150,7 +150,7 @@ export default function Navbar() {
                     </button>
                   </>
                 ) : (
-                  <Button onClick={() => window.location.assign('/dashboard')} className="mt-2">
+                  <Button onClick={() => window.location.assign('/auth')} className="mt-2">
                     Get Started
                   </Button>
                 )}

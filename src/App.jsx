@@ -17,6 +17,7 @@ import ServiceDetail from '@/pages/ServiceDetail';
 import Pricing from '@/pages/Pricing';
 import Support from '@/pages/Support';
 import DatingGuide from '@/pages/guides/DatingGuide';
+import Auth from '@/pages/Auth';
 
 // Dashboard pages
 import DashboardOverview from '@/pages/dashboard/DashboardOverview';
@@ -61,6 +62,7 @@ const AuthenticatedApp = () => {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/support" element={<Support />} />
         <Route path="/guides/dating" element={<DatingGuide />} />
+        <Route path="/auth" element={<Auth />} />
       </Route>
 
       {/* Dashboard routes */}
