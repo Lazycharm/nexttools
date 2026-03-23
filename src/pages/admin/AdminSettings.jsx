@@ -31,6 +31,7 @@ const SETTINGS_SCHEMA = {
     icon: Globe,
     color: 'bg-fuchsia-500/10 text-fuchsia-600',
     fields: [
+      { key: 'hero_bg_image', label: 'Hero Background Image URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
       { key: 'hero_collage_1', label: 'Hero Image 1 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
       { key: 'hero_collage_2', label: 'Hero Image 2 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },
       { key: 'hero_collage_3', label: 'Hero Image 3 URL', placeholder: 'https://images.unsplash.com/...', type: 'image_url' },

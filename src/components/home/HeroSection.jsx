@@ -43,14 +43,13 @@ export default function HeroSection() {
       {/* Banner image background */}
       <div className="absolute inset-0">
         <img
-          src={bgBanner}
+          src={map.hero_bg_image || bgBanner}
           alt="Digital network"
           loading="eager"
           decoding="async"
           fetchPriority="high"
           className="w-full h-full object-cover object-center opacity-75 md:opacity-60"
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/90 to-background/80" />
       </div>
       <div className="absolute top-20 left-10 w-72 h-72 bg-primary/8 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/6 rounded-full blur-3xl" />
@@ -62,17 +61,18 @@ export default function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="inline-block rounded-2xl bg-background/65 backdrop-blur-sm p-5 sm:p-7 border border-background/40 shadow-sm"
           >
-            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs font-medium">
+            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs font-medium bg-background/90 text-foreground">
               ✦ Trusted by 12,000+ professionals
             </Badge>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.35)]">
               Professional tools for{' '}
               <span className="text-primary">business</span>
             </h1>
 
-            <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
+            <p className="mt-6 text-lg text-foreground/85 leading-relaxed">
               Access premium proxy services, virtual numbers, social growth tools, dating services, and business utilities all in one platform.
             </p>
 
@@ -96,7 +96,7 @@ export default function HeroSection() {
                 { icon: Zap, label: 'Instant Delivery' },
                 { icon: Globe, label: '190+ Countries' },
               ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div key={item.label} className="flex items-center gap-2 text-sm text-foreground/80">
                   <item.icon className="w-4 h-4 text-primary" />
                   {item.label}
                 </div>
